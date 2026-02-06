@@ -23,9 +23,13 @@ Web Audio convolution, it allows musicians and engineers to virtually
 
 ### A. Frontend & UI (The "Container")
 * **Format:** Single `index.html` file using ES Modules.
+  - Use Google Javascript coding style
+    - (2-space indents, javadoc, type annotations, etc). See https://google.github.io/styleguide/jsguide.html
+    - But use modern ES2024 features for type annotations etc. We will target up-to-date browsers and go for clean code.
 * **UI Framework:** Tailwind CSS (via CDN) for a responsive, dark-mode "Studio" aesthetic.
 * **3D Engine:** Three.js for rendering the room mesh and handling spatial transforms.
 * **State Management:** Vanilla JS or a lightweight store (like Preact signals) to track source/listener coordinates and room parameters.
+  - No server. No user data leaves the browser, except at the initiative of the user (like for downloading an IR).
 
 ### B. The Geometry Pipeline (Vision → Mesh)
 * **Orchestration:** Gemini 1.5 Pro (or similar VLM) accessed via client-side API calls.
@@ -38,6 +42,7 @@ Web Audio convolution, it allows musicians and engineers to virtually
     1.  Casts rays from the source.
     2.  Calculates energy loss per bounce (Frequency-dependent: $E_{new} = E_{old} \times (1 - \alpha)$).
     3.  Accounts for air absorption and distance attenuation.
+    4.  Tracks propagation delay.
 * **IR Synthesis:** Aggregating ray arrivals into a time-domain impulse response buffer.
 
 ### D. Audio Processing (The "Output")
@@ -49,4 +54,27 @@ Web Audio convolution, it allows musicians and engineers to virtually
 
 ## 4. Implementation Phases
 
-### Phase
+### Phase 1: The "Hollow" App (UI & 3D)
+* [ ] Set up the single HTML boilerplate with Three.js.
+* [ ] Create a basic "Box" room with OrbitControls.
+* [ ] Implement draggable 3D markers for Source and Listener.
+* [ ] Create a unit test framework that can be run by npm.
+
+### Phase 2: The Vision Bridge
+* [ ] Integrate Gemini API to accept a photo.
+* [ ] Develop the "Material Dictionary" mapping visual labels (brick, carpet, glass) to acoustic coefficients.
+* [ ] Implement dynamic `BufferGeometry` generation from AI-provided JSON.
+
+### Phase 3: Ray Tracing & Physics
+* [ ] Integrate `three-mesh-bvh` for intersection testing.
+* [ ] Port the core reflection logic to Wasm/Web Workers to prevent UI blocking.
+* [ ] Generate a visual "Ray Cloud" to debug path calculations.
+
+### Phase 4: Audio & Export
+* [ ] Implement the Web Audio graph (Upload → Convolver → Output).
+* [ ] Build the IR Waveform visualizer.
+* [ ] Add the `.wav` encoder for the final export functionality.
+
+### Phase 5: Polish & Niche Features
+* [ ] Add "Presets" (e.g., "Brooklyn Basement," "Tiled Bathroom").
+* [ ] Implement a simple low-pass "Diffraction Approximation" for bass frequencies.
