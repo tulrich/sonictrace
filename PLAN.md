@@ -7,14 +7,15 @@ application that transforms photos of physical spaces into
 high-fidelity Acoustic Impulse Responses (IR). By combining Computer
 Vision for geometry reconstruction, BVH-accelerated ray tracing, and
 Web Audio convolution, it allows musicians and engineers to virtually
-"re-amp" audio through any room they can photograph.
+re-spatialize audio through any room they can get an image of.
 
 ## 2. Core Features
 * **Vision-Driven Modeling:** Upload a photo (or generate one via AI) to automatically derive room dimensions and material properties.
 * **3D Mesh Previewer:** A WebGL-based UI to inspect the reconstructed room, rotate the perspective, and toggle material "heatmaps."
-* **Interactive Spatial UI:** Drag-and-drop handles for the Sound Source (e.g., a bass amp) and the Listener (e.g., a microphone).
-* **High-Performance Ray Tracer:** A Wasm-powered engine calculating specular and diffuse reflections based on frequency-dependent absorption coefficients.
-* **Real-time Re-amping:** A "Listen" mode that loops a user-uploaded audio clip through a real-time convolution engine using the generated IR.
+* **Interactive Spatial UI:** Drag-and-drop handles for the Sound Source (e.g., a snare drum) and the Listener (e.g., a pair of microphones).
+* **High-Performance Ray Tracer:** A Wasm-powered raytrace engine calculating specular and diffuse reflections based on frequency-dependent absorption coefficients to compute IRs for midrange and high frequencies.
+* **Wave Equation Solver For Mid/Low End** A Wasm-based engine for generating IRs below 500Hz by solving the acoustic wave equation using a Finite Difference Discrete Time method on a voxelized representation of the geometry.
+* **Real-time Processing:** A "Listen" mode that loops a user-uploaded audio clip through a real-time convolution engine using the generated IR.
 * **Export:** Download the final IR as a high-fidelity `.wav` file for use in external DAWs.
 
 ---
@@ -29,13 +30,13 @@ Web Audio convolution, it allows musicians and engineers to virtually
 * **UI Framework:** Tailwind CSS (via CDN) for a responsive, dark-mode "Studio" aesthetic.
 * **3D Engine:** Three.js for rendering the room mesh and handling spatial transforms.
 * **State Management:** Vanilla JS or a lightweight store (like Preact signals) to track source/listener coordinates and room parameters.
-  - No server. No user data leaves the browser, except at the initiative of the user (like for downloading an IR).
+  - No server. No user data leaves the browser, except at the initiative of the user (e.g., for downloading an IR).
 
 ### B. The Geometry Pipeline (Vision → Mesh)
-* **Orchestration:** Gemini 1.5 Pro (or similar VLM) accessed via client-side API calls.
+* **Orchestration:** Gemini 3 Pro (or similar VLM) accessed via client-side API calls.
 * **Prompt Strategy:** Instruct the model to analyze the image and return a structured JSON representing vertices, indices, and material labels (e.g., "ceiling": "popcorn_plaster", "floor": "hardwood").
 * **Mesh Generation:** Convert JSON output into a `THREE.BufferGeometry`.
-
+* **Voxelization:** Convert the mesh representation into a voxel array for low-end acoustic solve. Classify cells as open, solid (with absorption parameter) and external (i.e. infinite absorption where sound escapes the model).
 ### C. The Acoustic Engine (The "Brain")
 * **Spatial Data Structure:** `three-mesh-bvh` to enable fast ray-casting against the geometry.
 * **Tracer (WebAssembly):** A Rust or C++ core that:
@@ -43,7 +44,9 @@ Web Audio convolution, it allows musicians and engineers to virtually
     2.  Calculates energy loss per bounce (Frequency-dependent: $E_{new} = E_{old} \times (1 - \alpha)$).
     3.  Accounts for air absorption and distance attenuation.
     4.  Tracks propagation delay.
-* **IR Synthesis:** Aggregating ray arrivals into a time-domain impulse response buffer.
+* **Wave Equation solver (WebAssembly):**
+    1.  Voxel based finite difference discrete time code that evolves air pressure at each cell to produce an IR for lower frequencies
+* **IR Synthesis:** Aggregating ray arrivals into a time-domain impulse response buffer. Combine with wave equation solve IR for full spectrum IR
 
 ### D. Audio Processing (The "Output")
 * **Web Audio API:**
