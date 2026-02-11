@@ -8,7 +8,7 @@ transforms photos of physical spaces into high-fidelity Acoustic
 Impulse Responses (IR). By combining Computer Vision for geometry
 reconstruction, BVH-accelerated ray tracing, and Web Audio
 convolution, it allows musicians and engineers to virtually
-respatialize audio through any room they can photograph.
+respatialize audio through any room they can get images of.
 
 ## 2. Core Features
 * **Vision-Driven Modeling:** Upload a photo (or generate one via AI) to automatically derive room dimensions and material properties.
@@ -30,9 +30,10 @@ respatialize audio through any room they can photograph.
 * **UI Framework:** Tailwind CSS (via CDN) for a responsive, dark-mode "Studio" aesthetic.
 * **3D Engine:** Three.js for rendering the room mesh and handling spatial transforms.
 * **State Management:** Vanilla JS or a lightweight store (like Preact signals) to track source/listener coordinates and room parameters.
-  - No server. No user data leaves the browser, except at the initiative of the user (like for downloading an IR).
+  - No server. No user data leaves the browser, except at the initiative of the user (e.g., for downloading an IR).
 
 ### B. The Geometry Pipeline (Vision → Mesh)
+* **Orchestration:** Gemini 3 Pro (or similar VLM) accessed via client-side API calls.
 * **Orchestration:** Gemini 3 Pro (or similar VLM) accessed via client-side API calls.
 * **Prompt Strategy:** Instruct the model to analyze the image and return a structured JSON representing vertices, indices, and material labels (e.g., "ceiling": "popcorn_plaster", "floor": "hardwood").
 * **Mesh Generation:** Convert JSON output into a `THREE.BufferGeometry`.
