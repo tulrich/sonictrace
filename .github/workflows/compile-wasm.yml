@@ -1,0 +1,33 @@
+name: Compile C++ to WASM
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'solver/**'
+      - '.github/workflows/compile-wasm.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+      with:
+        version: latest
+
+    - name: Compile WASM
+      run: |
+        emcc --bind -O3 -msimd128 solver/fdtd_solver.cc solver/engine_bridge.cc -s WASM=1 -s EXPORTED_RUNTIME_METHODS='["ccall","cwrap"]' -o public/engine.js
+
+    - name: Commit and Push Changes
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: "chore: remote WASM build [skip ci]"
+        file_pattern: 'public/engine.*'
