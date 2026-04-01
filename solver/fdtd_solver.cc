@@ -33,6 +33,10 @@ void FdtdSolver::Step() {
   std::vector<float>& curr = current_ ? p_b_ : p_a_;
   std::vector<float>& next = current_ ? p_a_ : p_b_;
 
+  const size_t dx_stride = 1;
+  const size_t dy_stride = nx_;
+  const size_t dz_stride = static_cast<size_t>(nx_) * ny_;
+
   // 7-point stencil loop
   // Skip boundary nodes for now (simplest Dirichlet BC: pressure = 0 at walls)
   for (int z = 1; z < nz_ - 1; ++z) {
@@ -41,9 +45,9 @@ void FdtdSolver::Step() {
         size_t i = Index(x, y, z);
 
         float laplacian =
-            curr[Index(x + 1, y, z)] + curr[Index(x - 1, y, z)] +
-            curr[Index(x, y + 1, z)] + curr[Index(x, y - 1, z)] +
-            curr[Index(x, y, z + 1)] + curr[Index(x, y, z - 1)] -
+            curr[i + dx_stride] + curr[i - dx_stride] +
+            curr[i + dy_stride] + curr[i - dy_stride] +
+            curr[i + dz_stride] + curr[i - dz_stride] -
             6.0f * curr[i];
 
         next[i] = 2.0f * curr[i] - next[i] + lambda_sq * laplacian;
