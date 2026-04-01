@@ -10,7 +10,7 @@ reconstruction, BVH-accelerated ray tracing, and Web Audio
 convolution, it allows musicians and engineers to virtually
 respatialize audio through any room they can get images of.
 
-## 2. Core Features
+## 2. Features
 * **Vision-Driven Modeling:** Upload a photo (or generate one via AI) to automatically derive room dimensions and material properties.
 * **3D Mesh Previewer:** A WebGL-based UI to inspect the reconstructed room and voxelization, rotate the perspective, and toggle material "heatmaps."
 * **Interactive Spatial UI:** Drag-and-drop handles for the Sound Source (e.g., a bass amp) and the Listener (e.g., a microphone).
@@ -103,9 +103,31 @@ respatialize audio through any room they can get images of.
 * [x] Create a unit test framework that can be run by npm.
 
 ### Phase 2: Ray Tracing & Physics
-* [ ] Implement the audio engine in a compiled language compatible with WASM+SIMD.
-* [ ] Provide intermediate outputs like pressure grids and ray clouds to see what the engine is doing.
-* [ ] Validate against Bell Labs Box (simple rectangular room with known analytical solutions) and PTB Studio (more complex geometry).
+* [ ] Initialize the audio engine subsystem in a compiled language compatible with WASM+SIMD.
+    * [ ] Code goes in src/engine.
+    * [ ] Code in C++ using Google C++ coding style, in a data-oriented style.
+    * [ ] Use the Eigen library for vector/matrix math.
+    * [ ] Set up build rules that can make the WASM output we need, and also run unit tests natively.
+* [ ] Add basic audio UI
+    * [ ] The app computes an IR based on the user controls.
+    * [ ] Add a control that recomputes the IR whenever a relevant parameter changes.
+    * [ ] Add a control that plays audio of the current IR. Later we'll support convolving a user-supplied test sound with the IR.
+    * [ ] Add a selector for different types of receiver: mono omni, stereo omni, stereo head simulator.
+    * [ ] The current IR should be displayed as a waveform.
+    * [ ] The initial solver should just be a stub that returns a unit impulse for the IR. We'll address IR computation in later steps.
+* [ ] Implement the wave equation based solver for lower frequencies.
+    * [ ] Establish some unit tests to verify simple cases
+        * [ ] Anechoic impulse response
+        * [ ] Simple box
+        * [ ] Something more complex
+    * [ ] Add a pressure grid display to the UI, to visualize room nodes etc.
+    * [ ] Show the wave-based IR separately from the final combined IR.
+* [ ] Implement the ray tracing solver for higher frequencies. See implementation notes above.
+    * [ ] Add a ray cloud display to the UI.
+    * [ ] Show the ray-based IR separately from the final combined IR.
+* [ ] Implement the merging of solutions from the two solvers.
+    * [ ] Validation tests to make sure phase is correct and aligned.
+* [ ] Validation tests against Bell Labs Box (simple rectangular room with known analytical solutions) and PTB Studio (more complex geometry).
 
 ### Phase 3: The Vision Bridge
 * [ ] Integrate Gemini API to accept a photo.
