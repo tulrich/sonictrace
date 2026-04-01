@@ -97,10 +97,10 @@ respatialize audio through any room they can get images of.
 ## 4. Implementation Phases
 
 ### Phase 1: The "Hollow" App (UI & 3D)
-* [ ] Set up the single HTML boilerplate with Three.js.
-* [ ] Create a basic "Box" room with OrbitControls.
-* [ ] Implement draggable 3D markers for Source and Listener.
-* [ ] Create a unit test framework that can be run by npm.
+* [x] Set up the single HTML boilerplate with Three.js.
+* [x] Create a basic "Box" room with OrbitControls.
+* [x] Implement draggable 3D markers for Source and Listener.
+* [x] Create a unit test framework that can be run by npm.
 
 ### Phase 2: Ray Tracing & Physics
 * [ ] Implement the audio engine in a compiled language compatible with WASM+SIMD.

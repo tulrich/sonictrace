@@ -1,0 +1,22 @@
+{
+  "name": "sonictrace",
+  "version": "1.0.0",
+  "description": "A Vision-to-Acoustics IR Generation Tool",
+  "main": "index.html",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0",
+    "jsdom": "^23.0.0"
+  },
+  "dependencies": {
+    "three": "^0.160.0"
+  }
+}
