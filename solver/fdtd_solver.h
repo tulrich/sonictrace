@@ -50,11 +50,12 @@ class FdtdSolver {
   int nx_, ny_, nz_;
   float dx_;
   float dt_;
-  float c_ = 343.0f; // Speed of sound in m/s
+  const float c_ = 343.0f; // Speed of sound in m/s
 
   // Double buffered pressure grids
-  std::vector<float> p_curr_;
-  std::vector<float> p_prev_;
+  std::vector<float> p_a_;
+  std::vector<float> p_b_;
+  int current_ = 0;
 
   /**
    * Helper to index the 1D vector as 3D.

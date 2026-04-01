@@ -15,13 +15,14 @@ FdtdSolver::FdtdSolver(int nx, int ny, int nz, float dx)
   dt_ = dx_ / (c_ * std::sqrt(3.0f));
 
   size_t size = static_cast<size_t>(nx_) * ny_ * nz_;
-  p_curr_.assign(size, 0.0f);
-  p_prev_.assign(size, 0.0f);
+  p_a_.assign(size, 0.0f);
+  p_b_.assign(size, 0.0f);
 }
 
 void FdtdSolver::Reset() {
-  std::fill(p_curr_.begin(), p_curr_.end(), 0.0f);
-  std::fill(p_prev_.begin(), p_prev_.end(), 0.0f);
+  std::fill(p_a_.begin(), p_a_.end(), 0.0f);
+  std::fill(p_b_.begin(), p_b_.end(), 0.0f);
+  current_ = 0;
 }
 
 void FdtdSolver::Step() {
@@ -29,9 +30,8 @@ void FdtdSolver::Step() {
   const float lambda = (c_ * dt_ / dx_);
   const float lambda_sq = lambda * lambda;
 
-  // Temporary buffer to hold the NEXT state
-  // In a real SIMD implementation, we'd ping-pong between pointers
-  std::vector<float> p_next(p_curr_.size());
+  std::vector<float>& curr = current_ ? p_b_ : p_a_;
+  std::vector<float>& next = current_ ? p_a_ : p_b_;
 
   // 7-point stencil loop
   // Skip boundary nodes for now (simplest Dirichlet BC: pressure = 0 at walls)
@@ -41,30 +41,31 @@ void FdtdSolver::Step() {
         size_t i = Index(x, y, z);
 
         float laplacian =
-            p_curr_[Index(x + 1, y, z)] + p_curr_[Index(x - 1, y, z)] +
-            p_curr_[Index(x, y + 1, z)] + p_curr_[Index(x, y - 1, z)] +
-            p_curr_[Index(x, y, z + 1)] + p_curr_[Index(x, y, z - 1)] -
-            6.0f * p_curr_[i];
+            curr[Index(x + 1, y, z)] + curr[Index(x - 1, y, z)] +
+            curr[Index(x, y + 1, z)] + curr[Index(x, y - 1, z)] +
+            curr[Index(x, y, z + 1)] + curr[Index(x, y, z - 1)] -
+            6.0f * curr[i];
 
-        p_next[i] = 2.0f * p_curr_[i] - p_prev_[i] + lambda_sq * laplacian;
+        next[i] = 2.0f * curr[i] - next[i] + lambda_sq * laplacian;
       }
     }
   }
 
-  // Update buffers
-  p_prev_ = std::move(p_curr_);
-  p_curr_ = std::move(p_next);
+  // Update buffers - swap for next time
+  current_ = current_ ^ 1;
 }
 
 void FdtdSolver::SetPressure(int x, int y, int z, float value) {
+  std::vector<float>& curr = current_ ? p_b_ : p_a_;
   if (x >= 0 && x < nx_ && y >= 0 && y < ny_ && z >= 0 && z < nz_) {
-    p_curr_[Index(x, y, z)] = value;
+    curr[Index(x, y, z)] = value;
   }
 }
 
 float FdtdSolver::GetPressure(int x, int y, int z) const {
+  const std::vector<float>& curr = current_ ? p_b_ : p_a_;
   if (x >= 0 && x < nx_ && y >= 0 && y < ny_ && z >= 0 && z < nz_) {
-    return p_curr_[Index(x, y, z)];
+    return curr[Index(x, y, z)];
   }
   return 0.0f;
 }
