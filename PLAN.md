@@ -104,7 +104,7 @@ respatialize audio through any room they can get images of.
 
 ### Phase 2: Ray Tracing & Physics
 * [ ] Initialize the audio engine subsystem in a compiled language compatible with WASM+SIMD.
-    * [ ] Code goes in src/engine.
+    * [ ] Code goes in solver/.
     * [ ] Code in C++ using Google C++ coding style, in a data-oriented style.
     * [ ] Use the Eigen library for vector/matrix math.
     * [ ] Set up build rules that can make the WASM output we need, and also run unit tests natively.

@@ -55,7 +55,7 @@ void FdtdSolver::Step() {
         next[i] = 2.0f * curr[i] - next[i] + lambda_sq * laplacian;
       }
     }
-  }
+}
 
   // Update buffers - swap for next time
   current_ = current_ ^ 1;
