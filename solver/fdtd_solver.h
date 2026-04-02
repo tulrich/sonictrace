@@ -6,7 +6,7 @@
 #ifndef SOLVER_FDTD_SOLVER_H_
 #define SOLVER_FDTD_SOLVER_H_
 
-#include <vector>
+#include <Eigen/Core>
 #include <cstdint>
 
 namespace sonictrace {
@@ -53,8 +53,8 @@ class FdtdSolver {
   const float c_ = 343.0f; // Speed of sound in m/s
 
   // Double buffered pressure grids
-  std::vector<float> p_a_;
-  std::vector<float> p_b_;
+  Eigen::VectorXf p_a_;
+  Eigen::VectorXf p_b_;
   int current_ = 0;
 
   /**
