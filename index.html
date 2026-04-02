@@ -19,6 +19,34 @@
     <div class="bg-neutral-900/80 p-4 rounded-lg border border-neutral-800 backdrop-blur-sm">
       <h2 class="text-sm font-semibold mb-2 uppercase tracking-wider text-neutral-400">Controls</h2>
       <p class="text-xs text-neutral-500 mb-2">Drag handles to move source/listener.</p>
+      
+      <div class="flex flex-col gap-2 mt-4 p-3">
+        <label for="receiver-type" class="text-xs text-neutral-400">Receiver Type</label>
+        <select id="receiver-type" class="bg-neutral-800 text-sm p-1 rounded border border-neutral-700">
+          <option value="mono-omni">Mono Omni</option>
+          <option value="stereo-omni">Stereo Omni</option>
+          <option value="stereo-head">Stereo Head Simulator</option>
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-2 mt-2 p-3 border border-neutral-700 rounded-md bg-neutral-800/30">
+        <div class="flex items-center justify-between mb-2">
+          <label for="auto-update" class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Auto-Update</label>
+          <input type="checkbox" id="auto-update" class="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500">
+        </div>
+
+        <button id="compute-ir" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition mt-1">
+          Compute IR
+        </button>
+        <button id="play-ir" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition">
+          Play IR
+        </button>
+      </div>
+    </div>
+    
+    <div id="waveform-container" class="bg-neutral-900/80 p-2 rounded-lg border border-neutral-800 backdrop-blur-sm hidden">
+      <h2 class="text-[10px] font-semibold mb-1 uppercase tracking-wider text-neutral-500 px-1">Impulse Response</h2>
+      <canvas id="waveform-canvas" class="w-full h-16 bg-black/50 rounded"></canvas>
     </div>
   </div>
   <script type="module" src="/src/main.js"></script>

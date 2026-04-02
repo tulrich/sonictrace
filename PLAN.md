@@ -108,22 +108,28 @@ respatialize audio through any room they can get images of.
     * [x] Code in C++ using Google C++ coding style, in a data-oriented style.
     * [x] Use the Eigen library for vector/matrix math.
     * [x] Set up build rules that can make the WASM output we need, and also run unit tests natively.
-* [ ] Add basic audio UI
-    * [ ] The app computes an IR based on the user controls.
-    * [ ] Add a control that recomputes the IR whenever a relevant parameter changes.
-    * [ ] Add a control that plays audio of the current IR. Later we'll support convolving a user-supplied test sound with the IR.
-    * [ ] Add a selector for different types of receiver: mono omni, stereo omni, stereo head simulator.
-    * [ ] The current IR should be displayed as a waveform.
-    * [ ] The initial solver should just be a stub that returns a unit impulse for the IR. We'll address IR computation in later steps.
+* [x] Add basic audio UI
+    * [x] The app computes an IR based on the user controls.
+    * [x] Add a control that recomputes the IR whenever a relevant parameter changes.
+    * [x] Add a control that plays audio of the current IR. Later we'll support convolving a user-supplied test sound with the IR.
+    * [x] Add a selector for different types of receiver: mono omni, stereo omni, stereo head simulator.
+    * [x] The current IR should be displayed as a waveform.
+    * [x] The initial solver should just be a stub that returns a unit impulse for the IR. We'll address IR computation in later steps.
 * [ ] Implement the wave equation based solver for lower frequencies.
-    * [ ] Establish some unit tests to verify simple cases
-        * [ ] Anechoic impulse response
-        * [ ] Simple box
-        * [ ] Something more complex
+    * [ ] Establish some unit tests to verify simple cases.
+        * [ ] Anechoic impulse response.
+        * [ ] Simple box.
+        * [ ] Something more complex - look up Bell Labs Box parameters and construct a validation test.
+    * [ ] Geometry support
+        * [ ] The solver needs to be able to parse a mesh representation of the space and create an appropriate mesh data structure.
+        * [ ] The solver needs to voxelize the mesh and produce a list of boundary nodes with necessary modelling parameters.
     * [ ] Add a pressure grid display to the UI, to visualize room nodes etc.
     * [ ] Show the wave-based IR separately from the final combined IR.
 * [ ] Implement the ray tracing solver for higher frequencies. See implementation notes above.
-    * [ ] Add a ray cloud display to the UI.
+    * [ ] See above notes for the mesh representation requirements and acceleration structure(s).
+    * [ ] Implement direct ray tracing for the upper frequency bins.
+    * [ ] Extend to handle diffraction.
+    * [ ] Add a ray cloud display to the UI - the solver needs to communicate this ray info back to the UI, in the form of a buffer of data that can be visualized.
     * [ ] Show the ray-based IR separately from the final combined IR.
 * [ ] Implement the merging of solutions from the two solvers.
     * [ ] Validation tests to make sure phase is correct and aligned.

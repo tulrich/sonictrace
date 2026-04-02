@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {TransformControls} from 'three/examples/jsm/controls/TransformControls.js';
+import {AudioEngine} from './audio_engine.js';
 
 /**
  * SonicTrace Application class.
@@ -16,6 +17,10 @@ export class SonicTraceApp {
    * Initializes the application.
    */
   constructor() {
+    this.audioEngine = new AudioEngine();
+    this.autoUpdate = false;
+    this.playInterval = null;
+    this.irDirty = true;
     this.container = document.getElementById('canvas-container');
     if (!this.container) {
       // In tests, we might not have the container initially.
@@ -40,6 +45,7 @@ export class SonicTraceApp {
     this.setupRoom();
     this.setupMarkers();
     this.setupControls();
+    this.setupUI();
 
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
@@ -145,12 +151,160 @@ export class SonicTraceApp {
   }
 
   /**
+   * Sets up UI event listeners for buttons and controls.
+   */
+  setupUI() {
+    const computeBtn = document.getElementById('compute-ir');
+    const playBtn = document.getElementById('play-ir');
+    const receiverType = document.getElementById('receiver-type');
+    const autoUpdateToggle = document.getElementById('auto-update');
+
+    if (computeBtn) {
+      computeBtn.addEventListener('click', async () => {
+        await this.performCompute();
+      });
+    }
+
+    if (playBtn) {
+      playBtn.addEventListener('click', () => {
+        this.audioEngine.playIR();
+      });
+    }
+
+    if (receiverType) {
+      receiverType.addEventListener('change', (e) => {
+        console.log('Receiver type changed:', e.target.value);
+        this.markDirty();
+        if (this.autoUpdate) {
+          this.performCompute();
+        }
+      });
+    }
+
+    if (autoUpdateToggle) {
+      autoUpdateToggle.addEventListener('change', (e) => {
+        this.updateAutoUpdate(e.target.checked);
+      });
+    }
+
+    this.transformControls.addEventListener('change', () => {
+      this.markDirty();
+    });
+
+    this.transformControls.addEventListener('dragging-changed', (event) => {
+      if (!event.value) {
+        console.log('Marker moved, ready to recompute IR');
+        if (this.autoUpdate) {
+          this.performCompute();
+        }
+      }
+    });
+
+    this.updateComputeButtonStyle();
+  }
+
+  /**
+   * Marks the IR as dirty (out of date with parameters).
+   */
+  markDirty() {
+    if (!this.irDirty) {
+      this.irDirty = true;
+      this.updateComputeButtonStyle();
+    }
+  }
+
+  /**
+   * Updates the "Compute IR" button style based on the dirty state.
+   */
+  updateComputeButtonStyle() {
+    const computeBtn = document.getElementById('compute-ir');
+    if (!computeBtn) return;
+
+    if (this.irDirty) {
+      computeBtn.classList.remove('bg-neutral-700', 'hover:bg-neutral-600');
+      computeBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+    } else {
+      computeBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+      computeBtn.classList.add('bg-neutral-700', 'hover:bg-neutral-600');
+    }
+  }
+
+  /**
+   * Performs the IR computation and updates UI.
+   */
+  async performCompute() {
+    const computeBtn = document.getElementById('compute-ir');
+    const originalText = computeBtn ? computeBtn.textContent : 'Compute IR';
+    
+    if (computeBtn) {
+      computeBtn.disabled = true;
+      computeBtn.textContent = 'Computing...';
+    }
+
+    await this.audioEngine.computeIR();
+    this.irDirty = false;
+    this.updateComputeButtonStyle();
+    this.updateWaveform();
+
+    if (computeBtn) {
+      computeBtn.disabled = false;
+      computeBtn.textContent = originalText;
+    }
+  }
+
+  /**
+   * Updates the waveform visualization.
+   */
+  updateWaveform() {
+    const container = document.getElementById('waveform-container');
+    const canvas = document.getElementById('waveform-canvas');
+    if (container && canvas) {
+      container.classList.remove('hidden');
+      // Set canvas internal resolution to match display size
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      this.audioEngine.drawWaveform(canvas);
+    }
+  }
+
+  /**
+   * Updates the auto-update state and manages the playback interval.
+   * @param {boolean} enabled - Whether auto-update is enabled.
+   */
+  async updateAutoUpdate(enabled) {
+    this.autoUpdate = enabled;
+    if (enabled) {
+      console.log('Auto-Update enabled: playing IR every 1s');
+      if (this.irDirty) {
+        await this.performCompute();
+      }
+      
+      // Start interval
+      if (this.playInterval) clearInterval(this.playInterval);
+      this.playInterval = setInterval(() => {
+        this.audioEngine.playIR();
+      }, 1000);
+      
+      // Also play immediately
+      this.audioEngine.playIR();
+    } else {
+      console.log('Auto-Update disabled');
+      if (this.playInterval) {
+        clearInterval(this.playInterval);
+        this.playInterval = null;
+      }
+    }
+  }
+
+  /**
    * Updates renderer and camera on window resize.
    */
   onWindowResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.updateWaveform(); // redraw waveform on resize
   }
 
   /**
