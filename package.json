@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
+    "test:engine": "node src/test_engine.js",
     "test:watch": "vitest",
     "dev": "vite",
     "build": "vite build",

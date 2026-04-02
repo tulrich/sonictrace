@@ -96,18 +96,18 @@ respatialize audio through any room they can get images of.
 
 ## 4. Implementation Phases
 
-### Phase 1: The "Hollow" App (UI & 3D)
+### [x] Phase 1: The "Hollow" App (UI & 3D)
 * [x] Set up the single HTML boilerplate with Three.js.
 * [x] Create a basic "Box" room with OrbitControls.
 * [x] Implement draggable 3D markers for Source and Listener.
 * [x] Create a unit test framework that can be run by npm.
 
 ### Phase 2: Ray Tracing & Physics
-* [ ] Initialize the audio engine subsystem in a compiled language compatible with WASM+SIMD.
-    * [ ] Code goes in solver/.
-    * [ ] Code in C++ using Google C++ coding style, in a data-oriented style.
-    * [ ] Use the Eigen library for vector/matrix math.
-    * [ ] Set up build rules that can make the WASM output we need, and also run unit tests natively.
+* [x] Initialize the audio engine subsystem in a compiled language compatible with WASM+SIMD.
+    * [x] Code goes in solver/.
+    * [x] Code in C++ using Google C++ coding style, in a data-oriented style.
+    * [x] Use the Eigen library for vector/matrix math.
+    * [x] Set up build rules that can make the WASM output we need, and also run unit tests natively.
 * [ ] Add basic audio UI
     * [ ] The app computes an IR based on the user controls.
     * [ ] Add a control that recomputes the IR whenever a relevant parameter changes.
