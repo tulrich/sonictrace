@@ -241,7 +241,9 @@ export class SonicTraceApp {
       computeBtn.textContent = 'Computing...';
     }
 
-    await this.audioEngine.computeIR();
+    // Pass the room mesh and markers to the audio engine
+    await this.audioEngine.computeIR(this.room, this.source.position, this.listener.position);
+    
     this.irDirty = false;
     this.updateComputeButtonStyle();
     this.updateWaveform();

@@ -4,6 +4,7 @@
  */
 
 import createEngine from '../public/engine.js';
+import * as THREE from 'three';
 
 /**
  * Handles audio processing and IR generation.
@@ -16,6 +17,10 @@ export class AudioEngine {
     this.impulseResponseBuffer = null;
     this.initialized = false;
     this.initializing = null;
+    
+    // Simulation parameters
+    this.dx = 0.07; // ~7cm voxels for ~500Hz limit
+    this.c = 343.0;
   }
 
   /**
@@ -29,10 +34,6 @@ export class AudioEngine {
       console.log('Initializing AudioEngine...');
       this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       this.wasmModule = await createEngine();
-      
-      // Initial stub solver (20x20x20, 0.1m dx)
-      this.solver = new this.wasmModule.FdtdSolver(20, 20, 20, 0.1);
-      
       this.initialized = true;
       this.initializing = null;
       console.log('AudioEngine initialized');
@@ -42,24 +43,101 @@ export class AudioEngine {
   }
 
   /**
-   * Computes a new Impulse Response based on current parameters.
-   * For now, this is a stub that returns a unit impulse.
+   * Computes a new Impulse Response based on current room geometry and markers.
+   * @param {THREE.Mesh} roomMesh - The mesh representing the room.
+   * @param {THREE.Vector3} sourcePos - Position of the source.
+   * @param {THREE.Vector3} listenerPos - Position of the listener.
    * @param {number} durationSeconds - Length of the IR to generate.
    */
-  async computeIR(durationSeconds = 1.0) {
+  async computeIR(roomMesh, sourcePos, listenerPos, durationSeconds = 0.5) {
     await this.init();
 
-    const sampleRate = this.audioCtx.sampleRate;
-    const length = Math.floor(sampleRate * durationSeconds);
-    const buffer = this.audioCtx.createBuffer(1, length, sampleRate);
-    const channelData = buffer.getChannelData(0);
+    // 1. Determine grid dimensions based on room bounding box
+    const bbox = new THREE.Box3().setFromObject(roomMesh);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
 
-    // Stub: Unit impulse at the start
-    channelData[0] = 1.0;
+    const nx = Math.ceil(size.x / this.dx) + 2;
+    const ny = Math.ceil(size.y / this.dx) + 2;
+    const nz = Math.ceil(size.z / this.dx) + 2;
+
+    console.log(`Grid dimensions: ${nx}x${ny}x${nz}, dx=${this.dx}`);
+
+    // 2. Initialize Solver
+    if (this.solver) this.solver.delete();
+    this.solver = new this.wasmModule.FdtdSolver(nx, ny, nz, this.dx);
+
+    // 3. Setup boundaries for a simple box room
+    this.setupBoxBoundaries(nx, ny, nz);
+
+    // 4. Set Material (Hardcoded placeholder for now)
+    // Models a slightly absorbent wall
+    this.solver.setMaterial(1, {
+      b0: 0.01, b1: 0.0, b2: 0.0,
+      a1: 0.0, a2: 0.0
+    });
+
+    // 5. Run Simulation
+    const sVoxel = this.getVoxelCoords(sourcePos, bbox, nx, ny, nz);
+    const lVoxel = this.getVoxelCoords(listenerPos, bbox, nx, ny, nz);
+
+    // dt = dx / (c * sqrt(3))
+    const dt = this.dx / (this.c * Math.sqrt(3.0));
+    const simSampleRate = 1.0 / dt;
+    const numSteps = Math.floor(durationSeconds * simSampleRate);
+    
+    console.log(`Simulation sample rate: ${simSampleRate.toFixed(1)} Hz`);
+    console.log(`Running simulation for ${numSteps} steps...`);
+    
+    const recording = this.solver.runSimulation(
+      lVoxel.x, lVoxel.y, lVoxel.z,
+      sVoxel.x, sVoxel.y, sVoxel.z,
+      numSteps, 1.0
+    );
+
+    // 6. Convert to AudioBuffer
+    const buffer = this.audioCtx.createBuffer(1, recording.size(), simSampleRate);
+    const channelData = buffer.getChannelData(0);
+    for (let i = 0; i < recording.size(); i++) {
+      channelData[i] = recording.get(i);
+    }
+    
+    // Cleanup Emscripten vector
+    recording.delete();
 
     this.impulseResponseBuffer = buffer;
-    console.log('IR computed (stub unit impulse)');
+    console.log('IR computed using FDTD solver');
     return buffer;
+  }
+
+  /**
+   * Temporary helper to setup boundaries for a box.
+   */
+  setupBoxBoundaries(nx, ny, nz) {
+    for (let z = 0; z < nz; ++z) {
+      for (let y = 0; y < ny; ++y) {
+        for (let x = 0; x < nx; ++x) {
+          if (x === 0 || x === nx - 1 || y === 0 || y === ny - 1 || z === 0 || z === nz - 1) {
+            this.solver.addBoundary(x, y, z, 1);
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Maps world coordinates to voxel grid coordinates.
+   */
+  getVoxelCoords(pos, bbox, nx, ny, nz) {
+    const relX = pos.x - bbox.min.x;
+    const relY = pos.y - bbox.min.y;
+    const relZ = pos.z - bbox.min.z;
+
+    return {
+      x: Math.max(1, Math.min(nx - 2, Math.floor(relX / this.dx) + 1)),
+      y: Math.max(1, Math.min(ny - 2, Math.floor(relY / this.dx) + 1)),
+      z: Math.max(1, Math.min(nz - 2, Math.floor(relZ / this.dx) + 1))
+    };
   }
 
   /**
@@ -69,7 +147,7 @@ export class AudioEngine {
     await this.init();
 
     if (!this.impulseResponseBuffer) {
-      await this.computeIR();
+      return;
     }
 
     if (this.audioCtx.state === 'suspended') {
