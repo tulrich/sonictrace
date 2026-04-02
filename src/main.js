@@ -67,7 +67,7 @@ export class SonicTraceApp {
    * Sets up the initial box room geometry.
    */
   setupRoom() {
-    const geometry = new THREE.BoxGeometry(10, 5, 8);
+    const geometry = new THREE.BoxGeometry(5, 3, 4);
     const material = new THREE.MeshStandardMaterial({
       color: 0x444444,
       side: THREE.BackSide,
@@ -84,8 +84,8 @@ export class SonicTraceApp {
     this.room.add(wireframe);
 
     // Add a grid for ground reference, slightly offset to avoid z-fighting
-    const grid = new THREE.GridHelper(20, 20, 0x333333, 0x222222);
-    grid.position.y = -2.501;
+    const grid = new THREE.GridHelper(10, 10, 0x333333, 0x222222);
+    grid.position.y = -1.501;
     this.scene.add(grid);
   }
 
