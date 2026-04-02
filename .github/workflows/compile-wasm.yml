@@ -40,6 +40,5 @@ jobs:
       with:
         commit_message: "chore: remote WASM build [skip ci]"
         file_pattern: 'public/engine.*'
-        commit_options: '--force'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
