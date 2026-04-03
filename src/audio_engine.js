@@ -52,7 +52,7 @@ export class AudioEngine {
   async computeIR(roomMesh, sourcePos, listenerPos, durationSeconds = 0.5) {
     await this.init();
 
-    // 1. Determine grid dimensions based on room bounding box
+    // Determine grid dimensions based on room bounding box
     const bbox = new THREE.Box3().setFromObject(roomMesh);
     const size = new THREE.Vector3();
     bbox.getSize(size);
@@ -63,37 +63,64 @@ export class AudioEngine {
 
     console.log(`Grid dimensions: ${nx}x${ny}x${nz}, dx=${this.dx}`);
 
-    // 2. Initialize Solver
+    // Initialize Solver
     if (this.solver) this.solver.delete();
     this.solver = new this.wasmModule.FdtdSolver(nx, ny, nz, this.dx);
 
-    // 3. Setup boundaries for a simple box room
+    // Setup boundaries for a simple box room
     this.setupBoxBoundaries(nx, ny, nz);
 
-    // 4. Set Material (Hardcoded placeholder for now)
-    // Models a slightly absorbent wall
+    // Set Materials
+
+    // Nearly anechoic.
     this.solver.setMaterial(1, {
-      b0: 0.01, b1: 0.0, b2: 0.0,
-      a1: 0.0, a2: 0.0
+      b0: 0.3333, b1: 1.0, b2: 0.0,
+      a1: 0.3333, a2: 0.0
+    });
+    // Somewhat more reflective. TODO: helper functions to compute these params.
+    this.solver.setMaterial(2, {
+      b0: 0.2000, b1: 0.1, b2: 0.0,
+      a1: 0.2000, a2: 0.0
     });
 
     // 5. Run Simulation
     const sVoxel = this.getVoxelCoords(sourcePos, bbox, nx, ny, nz);
     const lVoxel = this.getVoxelCoords(listenerPos, bbox, nx, ny, nz);
 
+    console.log(`Source Voxel: ${sVoxel.x}, ${sVoxel.y}, ${sVoxel.z}`);
+    console.log(`Listener Voxel: ${lVoxel.x}, ${lVoxel.y}, ${lVoxel.z}`);
+    const voxelDist = Math.sqrt(
+      Math.pow(sVoxel.x - lVoxel.x, 2) + 
+      Math.pow(sVoxel.y - lVoxel.y, 2) + 
+      Math.pow(sVoxel.z - lVoxel.z, 2)
+    );
+    console.log(`Voxel Distance: ${voxelDist.toFixed(2)}`);
+
     // dt = dx / (c * sqrt(3))
     const dt = this.dx / (this.c * Math.sqrt(3.0));
     const simSampleRate = 1.0 / dt;
     const numSteps = Math.floor(durationSeconds * simSampleRate);
-    
+    const expectedDelay = Math.floor(voxelDist / (this.c * dt / this.dx)); // Simplistic estimate
+    console.log(`Expected arrival around sample: ${expectedDelay}`);
+
     console.log(`Simulation sample rate: ${simSampleRate.toFixed(1)} Hz`);
     console.log(`Running simulation for ${numSteps} steps...`);
-    
+
     const recording = this.solver.runSimulation(
       lVoxel.x, lVoxel.y, lVoxel.z,
       sVoxel.x, sVoxel.y, sVoxel.z,
       numSteps, 1.0
     );
+
+    // Diagnostic check on recording
+    let firstArrival = -1;
+    for (let i = 0; i < Math.min(recording.size(), 500); i++) {
+      if (Math.abs(recording.get(i)) > 0.0001) {
+        firstArrival = i;
+        break;
+      }
+    }
+    console.log(`Actual first arrival (threshold 0.0001): sample ${firstArrival}`);
 
     // 6. Convert to AudioBuffer
     const buffer = this.audioCtx.createBuffer(1, recording.size(), simSampleRate);
@@ -112,12 +139,14 @@ export class AudioEngine {
 
   /**
    * Temporary helper to setup boundaries for a box.
+   * Applying boundaries to the layer just inside the grid edge
+   * because the bulk solver skips the actual edge voxels.
    */
   setupBoxBoundaries(nx, ny, nz) {
-    for (let z = 0; z < nz; ++z) {
-      for (let y = 0; y < ny; ++y) {
-        for (let x = 0; x < nx; ++x) {
-          if (x === 0 || x === nx - 1 || y === 0 || y === ny - 1 || z === 0 || z === nz - 1) {
+    for (let z = 1; z < nz - 1; ++z) {
+      for (let y = 1; y < ny - 1; ++y) {
+        for (let x = 1; x < nx - 1; ++x) {
+          if (x === 1 || x === nx - 2 || y === 1 || y === ny - 2 || z === 1 || z === nz - 2) {
             this.solver.addBoundary(x, y, z, 1);
           }
         }
@@ -174,24 +203,46 @@ export class AudioEngine {
     const step = Math.ceil(data.length / width);
     const amp = height / 2;
 
+    // Find absolute peak for normalization
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) {
+      const absVal = Math.abs(data[i]);
+      if (absVal > peak) peak = absVal;
+    }
+    
+    // Normalization factor (avoid division by zero)
+    const scale = peak > 0.0001 ? 1.0 / peak : 1.0;
+
     ctx.clearRect(0, 0, width, height);
-    ctx.beginPath();
-    ctx.moveTo(0, amp);
     ctx.strokeStyle = '#3b82f6'; // blue-500
     ctx.lineWidth = 1;
 
     for (let i = 0; i < width; i++) {
-      let min = 1.0;
-      let max = -1.0;
-      for (let j = 0; j < step; j++) {
-        const datum = data[(i * step) + j];
-        if (datum < min) min = datum;
-        if (datum > max) max = datum;
-      }
-      ctx.lineTo(i, (1 - min) * amp);
-      ctx.lineTo(i, (1 - max) * amp);
-    }
+      let min = 0;
+      let max = 0;
+      let found = false;
 
-    ctx.stroke();
+      for (let j = 0; j < step; j++) {
+        const idx = (i * step) + j;
+        if (idx >= data.length) break;
+        
+        const datum = data[idx] * scale;
+        if (!found) {
+          min = max = datum;
+          found = true;
+        } else {
+          if (datum < min) min = datum;
+          if (datum > max) max = datum;
+        }
+      }
+      
+      if (!found) break;
+
+      // Draw a vertical line for this pixel
+      ctx.beginPath();
+      ctx.moveTo(i, (1 - min) * amp);
+      ctx.lineTo(i, (1 - max) * amp);
+      ctx.stroke();
+    }
   }
 }
