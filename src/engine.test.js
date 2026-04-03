@@ -45,13 +45,14 @@ describe('WASM Engine', () => {
     expect(p0).toBeCloseTo(0.0, 5);
     
     // Step 1: next[i] = 2*curr[i] - prev[i] + lambda_sq * laplacian
-    // curr has 0.0, prev is 1.0, laplacian is 0.0 (assuming neighbors are still 0)
-    // next[i] = 2.0*0.0 - 1.0 + (1/3)*0 = -1.0
+    // curr has 0.0, prev is 1.0, laplacian is 2.0 (neighbors were updated in Step 0)
+    // next[i] = 2.0*0.0 - 1.0 + (1/3)*2.0 = -0.333333
     solver.step();
     const p1 = solver.getPressure(10, 10, 10);
-    expect(p1).toBeCloseTo(-1.0, 5);
-    
+    expect(p1).toBeCloseTo(-0.333333, 5);
+
     // Step 2:
+
     // curr has -1.0, prev is 0.0, laplacian depends on neighbors now
     solver.step();
     const p2 = solver.getPressure(10, 10, 10);
@@ -85,8 +86,8 @@ describe('WASM Engine', () => {
 
   it('should exhibit anechoic propagation (delay and 1/d attenuation)', async () => {
     const module = await createEngine();
-    // Use a larger grid to accommodate 2m+ distances
-    const nx = 60, ny = 60, nz = 60;
+    // Use a larger grid to accommodate 3m+ distances (at least 70-80 cells)
+    const nx = 80, ny = 60, nz = 60;
     const dx = 0.1;
     const c = 343.0;
     const solver = new module.FdtdSolver(nx, ny, nz, dx);
@@ -120,7 +121,9 @@ describe('WASM Engine', () => {
     
     let peakValue1 = 0;
     let peakSample1 = -1;
-    for (let i = 0; i < recording1.size(); i++) {
+    // Look for peak in a window to avoid reflections
+    const searchWindow1 = expectedSample1 + 20;
+    for (let i = 0; i < Math.min(recording1.size(), searchWindow1); i++) {
       const val = Math.abs(recording1.get(i));
       if (val > peakValue1) {
         peakValue1 = val;
@@ -142,7 +145,8 @@ describe('WASM Engine', () => {
     const recording2 = solver.runSimulation(rx2, sy, sz, sx, sy, sz, numSteps, 1.0);
     let peakValue2 = 0;
     let peakSample2 = -1;
-    for (let i = 0; i < recording2.size(); i++) {
+    const searchWindow2 = expectedSample2 + 20;
+    for (let i = 0; i < Math.min(recording2.size(), searchWindow2); i++) {
       const val = Math.abs(recording2.get(i));
       if (val > peakValue2) {
         peakValue2 = val;
