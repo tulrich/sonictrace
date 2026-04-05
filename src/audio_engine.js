@@ -14,6 +14,7 @@ export class AudioEngine {
     this.audioCtx = null;
     this.wasmModule = null;
     this.solver = null;
+    this.worker = null;
     this.impulseResponseBuffer = null;
     this.initialized = false;
     this.initializing = null;
@@ -33,7 +34,15 @@ export class AudioEngine {
     this.initializing = (async () => {
       console.log('Initializing AudioEngine...');
       this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      this.wasmModule = await createEngine();
+      
+      // Only initialize worker in a browser environment
+      if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+        this.worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+      } else {
+        // Fallback for Node.js/tests
+        this.wasmModule = await createEngine();
+      }
+
       this.initialized = true;
       this.initializing = null;
       console.log('AudioEngine initialized');
@@ -61,77 +70,71 @@ export class AudioEngine {
     const ny = Math.ceil(size.y / this.dx) + 2;
     const nz = Math.ceil(size.z / this.dx) + 2;
 
-    console.log(`Grid dimensions: ${nx}x${ny}x${nz}, dx=${this.dx}`);
-
-    // Initialize Solver
-    if (this.solver) this.solver.delete();
-    this.solver = new this.wasmModule.FdtdSolver(nx, ny, nz, this.dx);
-
-    // Setup boundaries for a simple box room
-    this.setupBoxBoundaries(nx, ny, nz);
-
-    // Set Materials
-
-    // Nearly anechoic.
-    this.solver.setMaterial(1, this.absorptionProfileToIirParams({
-      125: 0.99, 250: 0.99, 500: 0.99, 1000: 0.99, 2000: 0.99, 4000: 0.99
-    }));
-    // Somewhat more reflective.
-    this.solver.setMaterial(2, this.absorptionProfileToIirParams({
-      31: 0.05, 62: 0.20, 125: 0.40, 250: 0.50, 500: 0.60, 1000: 0.70, 2000: 0.80, 4000: 0.85
-    }));
-
-    // 5. Run Simulation
     const sVoxel = this.getVoxelCoords(sourcePos, bbox, nx, ny, nz);
     const lVoxel = this.getVoxelCoords(listenerPos, bbox, nx, ny, nz);
 
-    console.log(`Source Voxel: ${sVoxel.x}, ${sVoxel.y}, ${sVoxel.z}`);
-    console.log(`Listener Voxel: ${lVoxel.x}, ${lVoxel.y}, ${lVoxel.z}`);
-    const voxelDist = Math.sqrt(
-      Math.pow(sVoxel.x - lVoxel.x, 2) + 
-      Math.pow(sVoxel.y - lVoxel.y, 2) + 
-      Math.pow(sVoxel.z - lVoxel.z, 2)
-    );
-    console.log(`Voxel Distance: ${voxelDist.toFixed(2)}`);
-
     // dt = dx / (c * sqrt(3))
     const dt = this.dx / (this.c * Math.sqrt(3.0));
-    const simSampleRate = 1.0 / dt;
-    const numSteps = Math.floor(durationSeconds * simSampleRate);
-    const expectedDelay = Math.floor(voxelDist / (this.c * dt / this.dx)); // Simplistic estimate
-    console.log(`Expected arrival around sample: ${expectedDelay}`);
+    const fs = 1.0 / dt;
+    const numSteps = Math.floor(durationSeconds * fs);
 
-    console.log(`Simulation sample rate: ${simSampleRate.toFixed(1)} Hz`);
-    console.log(`Running simulation for ${numSteps} steps...`);
+    // Materials
+    const materials = {
+      1: this.absorptionProfileToIirParams({
+        125: 0.99, 250: 0.99, 500: 0.99, 1000: 0.99, 2000: 0.99, 4000: 0.99
+      }),
+      2: this.absorptionProfileToIirParams({
+        31: 0.05, 62: 0.20, 125: 0.40, 250: 0.50, 500: 0.60, 1000: 0.70, 2000: 0.80, 4000: 0.85
+      })
+    };
 
-    const recording = this.solver.runSimulation(
-      lVoxel.x, lVoxel.y, lVoxel.z,
-      sVoxel.x, sVoxel.y, sVoxel.z,
-      numSteps, 1.0
-    );
+    let resultData;
 
-    // Diagnostic check on recording
-    let firstArrival = -1;
-    for (let i = 0; i < Math.min(recording.size(), 500); i++) {
-      if (Math.abs(recording.get(i)) > 0.0001) {
-        firstArrival = i;
-        break;
+    if (this.worker) {
+      resultData = await new Promise((resolve) => {
+        this.worker.onmessage = (e) => {
+          if (e.data.type === 'completed') resolve(e.data.result);
+        };
+        this.worker.postMessage({
+          type: 'compute',
+          data: {
+            nx, ny, nz, dx: this.dx,
+            materials,
+            sourceVoxel: sVoxel,
+            listenerVoxel: lVoxel,
+            numSteps
+          }
+        });
+      });
+    } else {
+      // Direct call for tests
+      if (this.solver) this.solver.delete();
+      this.solver = new this.wasmModule.FdtdSolver(nx, ny, nz, this.dx);
+      for (const [id, params] of Object.entries(materials)) {
+        this.solver.setMaterial(Number(id), params);
       }
+      this.setupBoxBoundaries(nx, ny, nz);
+      
+      const recording = this.solver.runSimulation(
+        lVoxel.x, lVoxel.y, lVoxel.z,
+        sVoxel.x, sVoxel.y, sVoxel.z,
+        numSteps, 1.0
+      );
+      
+      resultData = new Float32Array(recording.size());
+      for (let i = 0; i < recording.size(); i++) {
+        resultData[i] = recording.get(i);
+      }
+      recording.delete();
     }
-    console.log(`Actual first arrival (threshold 0.0001): sample ${firstArrival}`);
 
     // 6. Convert to AudioBuffer
-    const buffer = this.audioCtx.createBuffer(1, recording.size(), simSampleRate);
+    const buffer = this.audioCtx.createBuffer(1, resultData.length, fs);
     const channelData = buffer.getChannelData(0);
-    for (let i = 0; i < recording.size(); i++) {
-      channelData[i] = recording.get(i);
-    }
+    channelData.set(resultData);
     
-    // Cleanup Emscripten vector
-    recording.delete();
-
     this.impulseResponseBuffer = buffer;
-    console.log('IR computed using FDTD solver');
+    console.log('IR computed (Worker:', !!this.worker, ')');
     return buffer;
   }
 
