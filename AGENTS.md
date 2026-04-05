@@ -10,7 +10,7 @@ This document provides technical instructions for developers and AI agents worki
 
 ### Commands
 * **Install Dependencies:** `npm install`
-* **Start Dev Server:** `npm run dev` (Runs Vite on http://localhost:5173 by default)
+* **Start Dev Server With Live Rebuilds:** `npm run dev` (Runs Vite on http://localhost:5173 by default)
 * **Build for Production:** `npm run build`
 
 ## 2. Testing Strategy

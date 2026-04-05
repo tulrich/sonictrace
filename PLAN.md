@@ -115,9 +115,26 @@ respatialize audio through any room they can get images of.
     * [x] Add a selector for different types of receiver: mono omni, stereo omni, stereo head simulator.
     * [x] The current IR should be displayed as a waveform.
     * [x] The initial solver should just be a stub that returns a unit impulse for the IR. We'll address IR computation in later steps.
+* [ ] Make the solver fast
+    * [ ] Vectorize
+    * [ ] Is threading a possibility?
+    * [ ] Also can we keep the UI responsive while it's working?
+* [ ] Material Library
+    * [ ] Stored like
+          ```json
+          "heavy_carpet_on_concrete": {
+              "description": "Commercial grade carpet, 1/4 inch pile",
+              "absorption": {
+                  "31": 0.01, "63": 0.01, "125": 0.02, "250": 0.05, "500": 0.10,
+                  "1000": 0.30, "2000": 0.50, "4000": 0.65
+              },
+              "scattering": 0.15
+          }
+          ```
+    * [x] Implement an absorption-to-IIR helper for setting material params in the FTDT solver.
 * [ ] Implement the wave equation based solver for lower frequencies.
     * [ ] Establish some unit tests to verify simple cases.
-        * [ ] Anechoic impulse response.
+        * [x] Anechoic impulse response.
         * [ ] Simple box.
         * [ ] Something more complex - look up Bell Labs Box parameters and construct a validation test.
     * [ ] Geometry support

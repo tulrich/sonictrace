@@ -47,7 +47,7 @@ void FdtdSolver::SetMaterial(int material_id, const MaterialParams& params) {
 
 void FdtdSolver::Step() {
   // Precompute constants for the stencil
-  const float lambda = (c_ * dt_ / dx_);
+  const float lambda = (c_ * dt_ / dx_);  // This is the Courant Number, aka S
   const float lambda_sq = lambda * lambda;
 
   Eigen::VectorXf& curr = current_ ? p_b_ : p_a_;

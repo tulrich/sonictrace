@@ -73,15 +73,13 @@ export class AudioEngine {
     // Set Materials
 
     // Nearly anechoic.
-    this.solver.setMaterial(1, {
-      b0: 0.3333, b1: 1.0, b2: 0.0,
-      a1: 0.3333, a2: 0.0
-    });
-    // Somewhat more reflective. TODO: helper functions to compute these params.
-    this.solver.setMaterial(2, {
-      b0: 0.2000, b1: 0.1, b2: 0.0,
-      a1: 0.2000, a2: 0.0
-    });
+    this.solver.setMaterial(1, this.absorptionProfileToIirParams({
+      125: 0.99, 250: 0.99, 500: 0.99, 1000: 0.99, 2000: 0.99, 4000: 0.99
+    }));
+    // Somewhat more reflective.
+    this.solver.setMaterial(2, this.absorptionProfileToIirParams({
+      31: 0.05, 62: 0.20, 125: 0.40, 250: 0.50, 500: 0.60, 1000: 0.70, 2000: 0.80, 4000: 0.85
+    }));
 
     // 5. Run Simulation
     const sVoxel = this.getVoxelCoords(sourcePos, bbox, nx, ny, nz);
@@ -147,7 +145,7 @@ export class AudioEngine {
       for (let y = 1; y < ny - 1; ++y) {
         for (let x = 1; x < nx - 1; ++x) {
           if (x === 1 || x === nx - 2 || y === 1 || y === ny - 2 || z === 1 || z === nz - 2) {
-            this.solver.addBoundary(x, y, z, 1);
+            this.solver.addBoundary(x, y, z, 2);
           }
         }
       }
@@ -167,6 +165,175 @@ export class AudioEngine {
       y: Math.max(1, Math.min(ny - 2, Math.floor(relY / this.dx) + 1)),
       z: Math.max(1, Math.min(nz - 2, Math.floor(relZ / this.dx) + 1))
     };
+  }
+
+  /**
+   * Creates material IIR parameters from an absorption profile.
+   * @param {Object<number, number>} absorption - Octave-band absorption coefficients (freq -> alpha).
+   * @return {Object} MaterialParams
+   */
+  absorptionProfileToIirParams(absorption) {
+    const pairs = Object.entries(absorption)
+      .map(([f, alpha]) => [Number(f), alpha])
+      .sort((a, b) => a[0] - b[0]);
+
+    // dt = dx / (c * sqrt(3))
+    const dt = this.dx / (this.c * Math.sqrt(3.0));
+    const fs = 1.0 / dt;
+
+    const coeffs = this.fitBoundaryIir(pairs, fs);
+
+    const result = {
+      "b0": coeffs.b[0], "b1": coeffs.b[1], "b2": coeffs.b[2],
+      "a1": coeffs.a[1], "a2": coeffs.a[2]
+    };
+    console.log('Computed IIR params:', result);
+    return result;
+  }
+
+  /**
+   * Fits a 2nd-order IIR to octave-band reflection coefficients.
+   * @param {Array<[number, number]>} pairs - Pairs of [freq, alpha]
+   * @param {number} fs - FDTD sampling rate
+   */
+  fitBoundaryIir(pairs, fs) {
+    // Target admittance for reflection R is Y = (1-R)/(1+R).
+    const Y_scale = 1.0;
+
+    const data = pairs
+      .filter(p => p[0] <= fs / 2) // Nyquist limit
+      .map(p => {
+        const r = Math.sqrt(Math.max(0, 1 - p[1]));
+        const yMag = Y_scale * (1 - r) / (1 + r);
+        return [p[0], yMag];
+      });
+
+    // Add DC anchor if not present
+    if (data.length > 0 && !data.find(p => p[0] === 0)) {
+      data.unshift([0, data[0][1]]);
+    }
+
+    if (data.length === 0) {
+      return { b: [0.01, 0, 0], a: [1.0, 0, 0] };
+    }
+
+    const rows = [];
+    data.forEach(([f, targetYMag]) => {
+      const omega = (2 * Math.PI * f) / fs;
+      
+      // Target uses a 1st-order all-pass structure that provides 0.5-sample delay at DC.
+      // This is exactly what the user's "good" parameters do and is much more stable
+      // for the FDTD solver than a pure z^-0.5 delay at high frequencies.
+      const z1 = { re: Math.cos(-omega), im: Math.sin(-omega) };
+      const num = { re: 1/3 + z1.re, im: z1.im };
+      const den = { re: 1 + 1/3 * z1.re, im: 1/3 * z1.im };
+      const denMagSq = den.re * den.re + den.im * den.im;
+      
+      const targetYRe = targetYMag * (num.re * den.re + num.im * den.im) / denMagSq;
+      const targetYIm = targetYMag * (num.im * den.re - num.re * den.im) / denMagSq;
+      
+      const cos1 = Math.cos(omega);
+      const cos2 = Math.cos(2 * omega);
+      const sin1 = Math.sin(omega);
+      const sin2 = Math.sin(2 * omega);
+
+      // Model: B(z) = Y(z) * A(z)
+      // (b0 + b1*z^-1 + b2*z^-2) = (Yre + jYim) * (1 + a1*z^-1 + a2*z^-2)
+      
+      // Real part: b0 + b1*cos1 + b2*cos2 - a1*(Yre*cos1 + Yim*sin1) - a2*(Yre*cos2 + Yim*sin2) = Yre
+      rows.push([
+        1, cos1, cos2,
+        -(targetYRe * cos1 + targetYIm * sin1),
+        -(targetYRe * cos2 + targetYIm * sin2),
+        targetYRe
+      ]);
+      
+      // Imaginary part: -b1*sin1 - b2*sin2 - a1*(Yim*cos1 - Yre*sin1) - a2*(Yim*cos2 - Yre*sin2) = Yim
+      rows.push([
+        0, -sin1, -sin2,
+        -(targetYIm * cos1 - targetYRe * sin1),
+        -(targetYIm * cos2 - targetYRe * sin2),
+        targetYIm
+      ]);
+    });
+
+    const x = this.solveLeastSquares(rows);
+
+    // x = [b0, b1, b2, a1, a2]
+    let b = [x[0], x[1], x[2]];
+    let a = [1.0, x[3], x[4]];
+
+    // Basic stability check for the denominator: 1 + a1*z^-1 + a2*z^-2
+    const a1 = a[1];
+    const a2 = a[2];
+    // Relaxed stability for low frequencies, but keep away from unit circle
+    const isUnstable = isNaN(a1) || isNaN(a2) || Math.abs(a2) >= 0.98 || Math.abs(a1) >= 1 + a2 - 0.001;
+
+    if (isUnstable) {
+      console.warn('IIR fit unstable, falling back to 0th order constant absorption.');
+      const avgY = data.reduce((sum, p) => sum + p[1], 0) / data.length;
+      b = [avgY, 0, 0];
+      a = [1.0, 0, 0];
+    }
+
+    return { b, a };
+  }
+
+  /**
+   * Solves M*x = Y using Normal Equations and Gaussian Elimination.
+   * @param {Array<Array<number>>} rows - Matrix rows [M | Y]
+   * @return {Array<number>} solution vector x
+   */
+  solveLeastSquares(rows) {
+    const n = rows[0].length - 1; // Number of variables (5)
+
+    // Construct Normal Equations: (M^T * M) * x = M^T * Y
+    const A = Array.from({ length: n }, () => new Float64Array(n + 1));
+    for (const row of rows) {
+      const Y = row[n];
+      for (let i = 0; i < n; i++) {
+        for (let j = 0; j < n; j++) {
+          A[i][j] += row[i] * row[j];
+        }
+        A[i][n] += row[i] * Y;
+      }
+    }
+
+    // Regularization to prevent singularity at low frequencies
+    for (let i = 0; i < n; i++) {
+      A[i][i] += 1e-5;
+    }
+
+    // Gaussian Elimination with partial pivoting
+    for (let i = 0; i < n; i++) {
+      let max = i;
+      for (let k = i + 1; k < n; k++) {
+        if (Math.abs(A[k][i]) > Math.abs(A[max][i])) max = k;
+      }
+      [A[i], A[max]] = [A[max], A[i]];
+
+      const pivot = A[i][i];
+      if (Math.abs(pivot) < 1e-15) continue;
+
+      for (let k = i + 1; k < n; k++) {
+        const factor = A[k][i] / pivot;
+        for (let j = i; j <= n; j++) {
+          A[k][j] -= factor * A[i][j];
+        }
+      }
+    }
+
+    // Back substitution
+    const x = new Float64Array(n);
+    for (let i = n - 1; i >= 0; i--) {
+      let sum = A[i][n];
+      for (let j = i + 1; j < n; j++) {
+        sum -= A[i][j] * x[j];
+      }
+      x[i] = sum / A[i][i];
+    }
+
+    return x;
   }
 
   /**
