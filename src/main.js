@@ -18,9 +18,10 @@ export class SonicTraceApp {
    */
   constructor() {
     this.audioEngine = new AudioEngine();
-    this.autoUpdate = false;
+    this.autoPlay = false;
     this.playInterval = null;
-    this.irDirty = true;
+    this.irDirty = false;
+    this.computingIr = false;
     this.container = document.getElementById('canvas-container');
     if (!this.container) {
       // In tests, we might not have the container initially.
@@ -49,6 +50,7 @@ export class SonicTraceApp {
 
     window.addEventListener('resize', () => this.onWindowResize(), false);
     this.animate();
+    this.markDirty();
   }
 
   /**
@@ -157,11 +159,11 @@ export class SonicTraceApp {
     const computeBtn = document.getElementById('compute-ir');
     const playBtn = document.getElementById('play-ir');
     const receiverType = document.getElementById('receiver-type');
-    const autoUpdateToggle = document.getElementById('auto-update');
+    const autoPlayToggle = document.getElementById('auto-play');
 
     if (computeBtn) {
       computeBtn.addEventListener('click', async () => {
-        await this.performCompute();
+        this.markDirty();
       });
     }
 
@@ -175,57 +177,68 @@ export class SonicTraceApp {
       receiverType.addEventListener('change', (e) => {
         console.log('Receiver type changed:', e.target.value);
         this.markDirty();
-        if (this.autoUpdate) {
-          this.performCompute();
-        }
       });
     }
 
-    if (autoUpdateToggle) {
-      autoUpdateToggle.addEventListener('change', (e) => {
-        this.updateAutoUpdate(e.target.checked);
+    if (autoPlayToggle) {
+      autoPlayToggle.addEventListener('change', (e) => {
+        this.updateAutoPlay(e.target.checked);
       });
     }
 
     this.transformControls.addEventListener('change', () => {
-      this.markDirty();
+      /* console.log('transformControls.change'); */
+      /* this.markDirty(); */
     });
 
     this.transformControls.addEventListener('dragging-changed', (event) => {
       if (!event.value) {
-        console.log('Marker moved, ready to recompute IR');
-        if (this.autoUpdate) {
-          this.performCompute();
-        }
+        console.log('Marker moved');
+        this.markDirty();
       }
     });
 
-    this.updateComputeButtonStyle();
+    this.updateComputeButton();
   }
 
   /**
    * Marks the IR as dirty (out of date with parameters).
    */
   markDirty() {
-    if (!this.irDirty) {
+    if (!this.computingIr) {
+      // Start computation.
+      this.irDirty = false;
+      this.performCompute();
+    } else {
       this.irDirty = true;
-      this.updateComputeButtonStyle();
     }
+    this.updateComputeButton();
   }
 
   /**
-   * Updates the "Compute IR" button style based on the dirty state.
+   * Updates the "Compute IR" button style based on the dirty state & computing state.
    */
-  updateComputeButtonStyle() {
+  updateComputeButton() {
     const computeBtn = document.getElementById('compute-ir');
     if (!computeBtn) return;
 
-    if (this.irDirty) {
+    if (this.irDirty && !this.computingIr) {
+      computeBtn.textContent = 'Compute IR';
       computeBtn.classList.remove('bg-neutral-700', 'hover:bg-neutral-600');
+      computeBtn.classList.remove('bg-yellow-700', 'hover:bg-yellow-600');
       computeBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
-    } else {
+    } else if (this.computingIr) {
+      // Computation in progress.
+      computeBtn.textContent = 'Computing IR...';
+      computeBtn.classList.remove('bg-neutral-600', 'hover:bg-neutral-700');
+      computeBtn.classList.add('bg-yellow-700', 'hover:bg-yellow-600');
       computeBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+    } else {
+      // Not dirty, not computing.
+      computeBtn.textContent = 'Compute IR';
       computeBtn.classList.add('bg-neutral-700', 'hover:bg-neutral-600');
+      computeBtn.classList.remove('bg-yellow-700', 'hover:bg-yellow-600');
+      computeBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
     }
   }
 
@@ -233,24 +246,26 @@ export class SonicTraceApp {
    * Performs the IR computation and updates UI.
    */
   async performCompute() {
-    const computeBtn = document.getElementById('compute-ir');
-    const originalText = computeBtn ? computeBtn.textContent : 'Compute IR';
-    
-    if (computeBtn) {
-      computeBtn.disabled = true;
-      computeBtn.textContent = 'Computing...';
+    if (this.computingIr) {
+      return;
     }
+    this.computingIr = true;
+    this.updateComputeButton();
 
     // Pass the room mesh and markers to the audio engine
     await this.audioEngine.computeIR(this.room, this.source.position, this.listener.position);
-    
-    this.irDirty = false;
-    this.updateComputeButtonStyle();
+    // TODO show computation performance stats
+
+    this.computingIr = false;
+    this.updateComputeButton();
     this.updateWaveform();
 
-    if (computeBtn) {
-      computeBtn.disabled = false;
-      computeBtn.textContent = originalText;
+    if (!this.autoPlay) {
+      this.audioEngine.playIR();
+    }
+    if (this.irDirty) {
+      this.irDirty = false;
+      this.performCompute();
     }
   }
 
@@ -271,16 +286,14 @@ export class SonicTraceApp {
   }
 
   /**
-   * Updates the auto-update state and manages the playback interval.
-   * @param {boolean} enabled - Whether auto-update is enabled.
+   * Updates the auto-play state and manages the playback interval.
+   * @param {boolean} enabled - Whether auto-play is enabled.
    */
-  async updateAutoUpdate(enabled) {
-    this.autoUpdate = enabled;
+  async updateAutoPlay(enabled) {
+    this.autoPlay = enabled;
     if (enabled) {
-      console.log('Auto-Update enabled: playing IR every 1s');
-      if (this.irDirty) {
-        await this.performCompute();
-      }
+      console.log('Auto-Play enabled: playing IR every 1s');
+      this.performCompute();
       
       // Start interval
       if (this.playInterval) clearInterval(this.playInterval);
@@ -291,7 +304,7 @@ export class SonicTraceApp {
       // Also play immediately
       this.audioEngine.playIR();
     } else {
-      console.log('Auto-Update disabled');
+      console.log('Auto-Play disabled');
       if (this.playInterval) {
         clearInterval(this.playInterval);
         this.playInterval = null;

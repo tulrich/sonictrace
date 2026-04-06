@@ -29,7 +29,11 @@ export class FdtdSolver {
   private nz: i32;
   private dx: f32;
   private dt: f32;
-  private c: f32 = 343.0;
+  private const c: f32 = 343.0;
+
+  private const XPAD: i32 = 4;
+  private const YPAD: i32 = 1;
+  private const ZPAD: i32 = 1;
 
   private p_a: Float32Array;
   private p_b: Float32Array;
@@ -37,6 +41,14 @@ export class FdtdSolver {
 
   private boundaries: Array<BoundaryVoxel> = new Array<BoundaryVoxel>();
   private materials: Array<MaterialParams> = new Array<MaterialParams>();
+
+  // Tile organization.
+  private const TILE_N: i32 = 16;
+  private tilenx: i32;
+  private tileny: i32;
+  private tilenz: i32;
+  // Offset to the boundaries for tile[i].
+  private perTileBoundaryStart: Int32Array;
 
   constructor(nx: i32, ny: i32, nz: i32, dx: f32) {
     this.nx = nx;
@@ -48,6 +60,9 @@ export class FdtdSolver {
     let size = nx * ny * nz;
     this.p_a = new Float32Array(size);
     this.p_b = new Float32Array(size);
+
+    // Tile params.
+    //this.tilenx = ;
   }
 
   public reset(): void {

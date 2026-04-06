@@ -27,17 +27,16 @@
           <option value="stereo-omni">Stereo Omni</option>
           <option value="stereo-head">Stereo Head Simulator</option>
         </select>
+        <button id="compute-ir" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition mt-1">
+          Compute IR
+        </button>
       </div>
 
       <div class="flex flex-col gap-2 mt-2 p-3 border border-neutral-700 rounded-md bg-neutral-800/30">
         <div class="flex items-center justify-between mb-2">
-          <label for="auto-update" class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Auto-Update</label>
-          <input type="checkbox" id="auto-update" class="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500">
+          <label for="auto-play" class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Auto-Play</label>
+          <input type="checkbox" id="auto-play" class="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-blue-600 focus:ring-blue-500">
         </div>
-
-        <button id="compute-ir" class="bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold py-2 px-4 rounded transition mt-1">
-          Compute IR
-        </button>
         <button id="play-ir" class="bg-green-600 hover:bg-green-700 text-white text-sm font-bold py-2 px-4 rounded transition">
           Play IR
         </button>
