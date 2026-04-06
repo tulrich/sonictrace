@@ -3,7 +3,7 @@
  * @license Apache-2.0
  */
 
-import createEngine from '../public/engine.js';
+import loader from '@assemblyscript/loader';
 import * as THREE from 'three';
 
 /**
@@ -33,14 +33,28 @@ export class AudioEngine {
 
     this.initializing = (async () => {
       console.log('Initializing AudioEngine...');
-      this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const AudioContextClass = (typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext));
+      if (AudioContextClass) {
+        this.audioCtx = new AudioContextClass();
+      } else {
+        console.warn('AudioContext not available in this environment.');
+      }
       
       // Only initialize worker in a browser environment
       if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
         this.worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
       } else {
         // Fallback for Node.js/tests
-        this.wasmModule = await createEngine();
+        if (typeof process !== 'undefined' && process.versions && process.versions.node) {
+          const fs = await import('fs');
+          const path = await import('path');
+          const wasmBuffer = fs.readFileSync(path.join(process.cwd(), 'public/engine.wasm'));
+          this.wasmModule = await loader.instantiate(wasmBuffer);
+        } else {
+          // Browser fallback if worker is disabled
+          const response = await fetch('/engine.wasm');
+          this.wasmModule = await loader.instantiate(response);
+        }
       }
 
       this.initialized = true;
@@ -108,34 +122,38 @@ export class AudioEngine {
       });
     } else {
       // Direct call for tests
-      if (this.solver) this.solver.delete();
-      this.solver = new this.wasmModule.FdtdSolver(nx, ny, nz, this.dx);
+      this.solver = new this.wasmModule.exports.FdtdSolver(nx, ny, nz, this.dx);
       for (const [id, params] of Object.entries(materials)) {
-        this.solver.setMaterial(Number(id), params);
+        this.solver.setMaterial(
+          Number(id),
+          params.b0, params.b1, params.b2,
+          params.a1, params.a2
+        );
       }
       this.setupBoxBoundaries(nx, ny, nz);
       
-      const recording = this.solver.runSimulation(
+      const recordingPtr = this.solver.runSimulation(
         lVoxel.x, lVoxel.y, lVoxel.z,
         sVoxel.x, sVoxel.y, sVoxel.z,
         numSteps, 1.0
       );
       
-      resultData = new Float32Array(recording.size());
-      for (let i = 0; i < recording.size(); i++) {
-        resultData[i] = recording.get(i);
-      }
-      recording.delete();
+      const resultRaw = this.wasmModule.exports.__getFloat32Array(recordingPtr);
+      resultData = new Float32Array(resultRaw);
     }
 
-    // 6. Convert to AudioBuffer
-    const buffer = this.audioCtx.createBuffer(1, resultData.length, fs);
-    const channelData = buffer.getChannelData(0);
-    channelData.set(resultData);
-    
-    this.impulseResponseBuffer = buffer;
-    console.log('IR computed (Worker:', !!this.worker, ')');
-    return buffer;
+    // 6. Convert to AudioBuffer if context is available
+    if (this.audioCtx) {
+      const buffer = this.audioCtx.createBuffer(1, resultData.length, fs);
+      const channelData = buffer.getChannelData(0);
+      channelData.set(resultData);
+      this.impulseResponseBuffer = buffer;
+      console.log('IR computed (Worker:', !!this.worker, ')');
+      return buffer;
+    } else {
+      console.log('IR computed (no AudioContext, returning raw data)');
+      return resultData;
+    }
   }
 
   /**

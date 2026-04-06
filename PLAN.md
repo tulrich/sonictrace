@@ -115,10 +115,21 @@ respatialize audio through any room they can get images of.
     * [x] Add a selector for different types of receiver: mono omni, stereo omni, stereo head simulator.
     * [x] The current IR should be displayed as a waveform.
     * [x] The initial solver should just be a stub that returns a unit impulse for the IR. We'll address IR computation in later steps.
+* [x] Port solver to AssemblyScript so we don't have to have the weird Actions compilation workflow
 * [ ] Make the solver fast
     * [ ] Vectorize
-    * [ ] Is threading a possibility?
-    * [ ] Also can we keep the UI responsive while it's working?
+    * [ ] Tile the updates for locality
+    * [ ] Is threading a possibility? Use parallel webworkers?
+* [ ] DRY the worker vs. foreground audio engine logic; right now there's a duplicated path that sets up the solve including boundary etc. That code should not be repeated because it will evolve.
+* [ ] UI fixes
+    * [ ] Auto-play separate from auto-compute
+    * [ ] Straighten out the isdirty logic
+* [ ] UI enhancements, extra info
+    * [ ] Show pre-delay (ms) and RT60 for the current IR
+    * [ ] mayne don't normalize the display
+    * [ ] show computation time and estimated flops for FDTD solve
+* [ ] UI enhancements, visualization
+    * [ ] Somehow show voxel results of the wave solve, like, can we display the room nodes?
 * [ ] Material Library
     * [ ] Stored like
           ```json

@@ -3,7 +3,7 @@
  * @license Apache-2.0
  */
 
-import createEngine from '../public/engine.js';
+import loader from '@assemblyscript/loader';
 
 let wasmModule = null;
 let solver = null;
@@ -13,7 +13,9 @@ let solver = null;
  */
 async function init() {
   if (!wasmModule) {
-    wasmModule = await createEngine();
+    // Note: In a Vite environment, we can use ?url or just the path if it's in public/
+    const response = await fetch('/engine.wasm');
+    wasmModule = await loader.instantiate(response);
   }
 }
 
@@ -27,15 +29,26 @@ self.onmessage = async (e) => {
     await init();
     const { nx, ny, nz, dx, materials, sourceVoxel, listenerVoxel, numSteps } = data;
 
-    if (solver) solver.delete();
-    solver = new wasmModule.FdtdSolver(nx, ny, nz, dx);
+    // In AS loader, classes are available on the exports
+    if (solver) {
+      // If we had a way to explicitly free, we would. AS has GC.
+      solver = null;
+    }
+    
+    solver = new wasmModule.exports.FdtdSolver(nx, ny, nz, dx);
 
     // Set Materials
     for (const [id, params] of Object.entries(materials)) {
-      solver.setMaterial(Number(id), params);
+      // params = {b0, b1, b2, a1, a2}
+      solver.setMaterial(
+        Number(id),
+        params.b0, params.b1, params.b2,
+        params.a1, params.a2
+      );
     }
 
     // Setup boundaries (simple box for now, matching audio_engine.js)
+    // Note: We could move this logic to AS side or pass it in.
     for (let z = 1; z < nz - 1; ++z) {
       for (let y = 1; y < ny - 1; ++y) {
         for (let x = 1; x < nx - 1; ++x) {
@@ -46,19 +59,16 @@ self.onmessage = async (e) => {
       }
     }
 
-    const recording = solver.runSimulation(
+    const recordingPtr = solver.runSimulation(
       listenerVoxel.x, listenerVoxel.y, listenerVoxel.z,
       sourceVoxel.x, sourceVoxel.y, sourceVoxel.z,
       numSteps, 1.0
     );
 
-    // Convert Emscripten vector to a standard Float32Array to transfer
-    const result = new Float32Array(recording.size());
-    for (let i = 0; i < recording.size(); i++) {
-      result[i] = recording.get(i);
-    }
-
-    recording.delete();
+    // Use loader to get the Float32Array from the pointer
+    const resultRaw = wasmModule.exports.__getFloat32Array(recordingPtr);
+    // Copy the data so we can transfer the buffer and let WASM GC the original
+    const result = new Float32Array(resultRaw);
 
     self.postMessage({ type: 'completed', result }, [result.buffer]);
   }

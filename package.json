@@ -10,14 +10,20 @@
     "test:watch": "vitest",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "asbuild:untouched": "asc solver/index.ts --target debug --enable simd",
+    "asbuild:optimized": "asc solver/index.ts --target release --enable simd",
+    "asbuild": "npm run asbuild:untouched && npm run asbuild:optimized"
   },
   "devDependencies": {
+    "asbuild": "^0.2.0",
+    "assemblyscript": "^0.19.23",
+    "jsdom": "^23.0.0",
     "vite": "^5.0.0",
-    "vitest": "^1.0.0",
-    "jsdom": "^23.0.0"
+    "vitest": "^1.0.0"
   },
   "dependencies": {
+    "@assemblyscript/loader": "^0.19.23",
     "three": "^0.160.0"
   }
 }
