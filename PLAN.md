@@ -117,16 +117,15 @@ respatialize audio through any room they can get images of.
     * [x] The initial solver should just be a stub that returns a unit impulse for the IR. We'll address IR computation in later steps.
 * [x] Port solver to AssemblyScript so we don't have to have the weird Actions compilation workflow
 * [ ] Make the solver fast
-    * [ ] Vectorize
+    * [x] Vectorize
     * [ ] Tile the updates for locality
     * [ ] Is threading a possibility? Use parallel webworkers?
 * [ ] DRY the worker vs. foreground audio engine logic; right now there's a duplicated path that sets up the solve including boundary etc. That code should not be repeated because it will evolve.
-* [ ] UI fixes
-    * [ ] Auto-play separate from auto-compute
-    * [ ] Straighten out the isdirty logic
+* [x] UI fixes
+    * [x] Auto-play separate from auto-compute
+    * [x] Straighten out the isdirty logic
 * [ ] UI enhancements, extra info
-    * [ ] Show pre-delay (ms) and RT60 for the current IR
-    * [ ] mayne don't normalize the display
+    * [x] Show pre-delay (ms) and RT60 for the current IR
     * [ ] show computation time and estimated flops for FDTD solve
 * [ ] UI enhancements, visualization
     * [ ] Somehow show voxel results of the wave solve, like, can we display the room nodes?
@@ -143,6 +142,7 @@ respatialize audio through any room they can get images of.
           }
           ```
     * [x] Implement an absorption-to-IIR helper for setting material params in the FTDT solver.
+    * [ ] Add some code to force dead/interior nodes to 0 pressure, to prevent transmission through solid spaces.
 * [ ] Implement the wave equation based solver for lower frequencies.
     * [ ] Establish some unit tests to verify simple cases.
         * [x] Anechoic impulse response.

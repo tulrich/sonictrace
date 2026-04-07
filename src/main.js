@@ -283,6 +283,11 @@ export class SonicTraceApp {
       canvas.height = rect.height;
       this.audioEngine.drawWaveform(canvas);
     }
+    const [peakdb, peakdelay, rt60] = this.audioEngine.getIrStats();
+    const statsSpan = document.getElementById('waveform-stats');
+    if (statsSpan) {
+      statsSpan.innerHTML = `peak: ${peakdb.toFixed(1)} dB @ ${(peakdelay * 1000).toFixed(1)} ms, rt60: ${(rt60 * 1000).toFixed(1)} ms`;
+    }
   }
 
   /**
@@ -334,5 +339,5 @@ export class SonicTraceApp {
 
 // Instantiate application.
 window.addEventListener('DOMContentLoaded', () => {
-  new SonicTraceApp();
+  window.app = new SonicTraceApp();
 });

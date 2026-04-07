@@ -22,6 +22,8 @@ export class AudioEngine {
     // Simulation parameters
     this.dx = 0.07; // ~7cm voxels for ~500Hz limit
     this.c = 343.0;
+    // dt = dx / (c * sqrt(3))
+    this.dt = this.dx / (this.c * Math.sqrt(3.0));
   }
 
   /**
@@ -87,9 +89,7 @@ export class AudioEngine {
     const sVoxel = this.getVoxelCoords(sourcePos, bbox, nx, ny, nz);
     const lVoxel = this.getVoxelCoords(listenerPos, bbox, nx, ny, nz);
 
-    // dt = dx / (c * sqrt(3))
-    const dt = this.dx / (this.c * Math.sqrt(3.0));
-    const fs = 1.0 / dt;
+    const fs = 1.0 / this.dt;
     const numSteps = Math.floor(durationSeconds * fs);
 
     // Materials
@@ -198,9 +198,7 @@ export class AudioEngine {
       .map(([f, alpha]) => [Number(f), alpha])
       .sort((a, b) => a[0] - b[0]);
 
-    // dt = dx / (c * sqrt(3))
-    const dt = this.dx / (this.c * Math.sqrt(3.0));
-    const fs = 1.0 / dt;
+    const fs = 1.0 / this.dt;
 
     const coeffs = this.fitBoundaryIir(pairs, fs);
 
@@ -375,6 +373,61 @@ export class AudioEngine {
     source.buffer = this.impulseResponseBuffer;
     source.connect(this.audioCtx.destination);
     source.start();
+  }
+
+  /**
+   * Return peakDb, peakdelay and rt60 for the current IR.
+   */
+  getIrStats() {
+    if (!this.impulseResponseBuffer) return [0, 0, 0];
+    // Compute peakDb and rt60.
+    const data = this.impulseResponseBuffer.getChannelData(0);
+    if (data.length == 0) return [0, 0, 0];
+    // Compute the Schroeder integration (integrate backwards).
+    let et = new Float32Array(data.length);
+    let e = 0.0;
+    let peakh2 = 0;
+    let peakh2index = 0;
+    for (let i = data.length - 1; i >= 0; i--) {
+      const h2 = data[i] * data[i]
+      e += h2;
+      et[i] = e;
+      if (h2 >= peakh2) {
+        peakh2 = h2;
+        peakh2index = i;
+      }
+    }
+    const peakdb = 10 * Math.log10(Math.sqrt(peakh2));
+    const peakdelay = peakh2index * this.dt;
+    // Compute the energy curve (in db).
+    let rt5 = 0;
+    let rt20 = 0;
+    let rt30 = 0;
+    let lt = new Float32Array(et.length);
+    for (let i = 0; i < et.length; i++) {
+      lt[i] = 10 * Math.log10(et[i]/et[0]);
+      if (rt5 == 0 && lt[i] <= -5.0) {
+        rt5 = i * this.dt;
+      }
+      if (rt20 == 0 && lt[i] <= -25.0) {
+        rt20 = i * this.dt;
+      }
+      if (rt30 == 0 && lt[i] <= -35.0) {
+        rt30 = i * this.dt;
+      }
+    }
+    // We're supposed to do a least-squares linear fit to determine
+    // the slope of decay but here we just use the endpoints.
+    let rt60 = 0;
+    if (rt30 == 0) {
+      if (rt20 > 0) {
+        rt60 = rt20 * 3.0;
+      }
+    } else {
+      rt60 = rt30 * 2.0;
+    }
+
+    return [peakdb, peakdelay, rt60];
   }
 
   /**
